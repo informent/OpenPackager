@@ -1,0 +1,34 @@
+name: OpenPackager CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build application
+        run: dotnet build OpenPackager.csproj -c Release
+      - name: Run engine regression tests
+        run: dotnet run --project tests/OpenPackager.EngineTests.csproj -c Release
+      - name: Publish self-contained build
+        run: dotnet publish OpenPackager.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -o ci-output
+      - name: Verify published executable
+        shell: pwsh
+        run: |
+          if (-not (Test-Path ci-output/OpenPackager.exe)) { throw 'Published executable missing.' }
+          Get-FileHash ci-output/OpenPackager.exe -Algorithm SHA256
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPackager-win-x64
+          path: ci-output/
