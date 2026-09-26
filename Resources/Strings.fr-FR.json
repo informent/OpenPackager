@@ -1,0 +1,9 @@
+{
+  "app.title": "OpenPackager",
+  "app.subtitle": "Empaquetage d'applications Windows",
+  "action.scan": "Analyser le projet",
+  "action.build": "Créer la version",
+  "action.cancel": "Annuler",
+  "action.update": "Rechercher les mises à jour",
+  "status.offline": "Mode hors connexion · Aucune télémétrie"
+}
