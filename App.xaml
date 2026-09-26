@@ -1,0 +1,14 @@
+<Application x:Class="OpenPackager.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <SolidColorBrush x:Key="Background" Color="#0B1020" />
+    <SolidColorBrush x:Key="Panel" Color="#131A2B" />
+    <SolidColorBrush x:Key="PanelAlt" Color="#1A2338" />
+    <SolidColorBrush x:Key="Border" Color="#293653" />
+    <SolidColorBrush x:Key="Text" Color="#EEF3FF" />
+    <SolidColorBrush x:Key="Muted" Color="#8E9AB5" />
+    <SolidColorBrush x:Key="Accent" Color="#6C8CFF" />
+    <SolidColorBrush x:Key="Good" Color="#51D6A2" />
+    <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource Text}" /><Setter Property="FontFamily" Value="Segoe UI" /></Style>
+    <Style TargetType="Button"><Setter Property="Foreground" Value="{StaticResource Text}" /><Setter Property="Background" Value="{StaticResource PanelAlt}" /><Setter Property="BorderBrush" Value="{StaticResource Border}" /><Setter Property="Padding" Value="16,10" /><Setter Property="Margin" Value="0,0,8,0" /><Setter Property="Cursor" Value="Hand" /><Setter Property="FontSize" Value="13" /></Style>
+  </Application.Resources>
+</Application>
