@@ -24,7 +24,8 @@ public partial class MainWindow : Window
         var folder = Path.Combine(github, next.ToString("D3"));
         Directory.CreateDirectory(folder);
         lastOutput = folder; OpenOutput.IsEnabled = false; BuildProgress.Visibility = Visibility.Visible; BuildProgress.IsIndeterminate = true; Activity.Text = $"Building update {next:D3}...\nThis can take a moment.";
-        var psi = new ProcessStartInfo("dotnet", $"publish \"{csproj}\" -c Release -r win-x64 --self-contained {SelfContained.IsChecked == true} -o \"{folder}\" -p:PublishSingleFile={SingleFile.IsChecked == true} -p:DebugType=None") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        var runtime = ((System.Windows.Controls.ComboBoxItem)Runtime.SelectedItem)?.Tag?.ToString() ?? "win-x64";
+        var psi = new ProcessStartInfo("dotnet", $"publish \"{csproj}\" -c Release -r {runtime} --self-contained {SelfContained.IsChecked == true} -o \"{folder}\" -p:PublishSingleFile={SingleFile.IsChecked == true} -p:DebugType=None") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         using var p = Process.Start(psi);
         if (p is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Could not start the .NET publisher."; return; }
         await p.WaitForExitAsync();
@@ -33,7 +34,7 @@ public partial class MainWindow : Window
         if (exe is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Build finished, but no executable was produced."; return; }
         var hash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(exe))).ToLowerInvariant();
         await File.WriteAllTextAsync(Path.Combine(folder, "SHA256SUMS.txt"), $"{hash}  {Path.GetFileName(exe)}\n");
-        var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileNameWithoutExtension(csproj), runtime = "win-x64", selfContained = SelfContained.IsChecked == true, singleFile = SingleFile.IsChecked == true, executable = Path.GetFileName(exe), sha256 = hash };
+        var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileNameWithoutExtension(csproj), runtime, selfContained = SelfContained.IsChecked == true, singleFile = SingleFile.IsChecked == true, executable = Path.GetFileName(exe), sha256 = hash };
         await File.WriteAllTextAsync(Path.Combine(folder, "openpackager-manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
         BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Release complete.\n\nUpdate: {next:D3}\nSaved to:\n{folder}\n\n{Path.GetFileName(exe)}";
         HealthText.Text = "Release ready to run.";
