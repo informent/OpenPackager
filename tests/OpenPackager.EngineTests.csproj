@@ -5,8 +5,6 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <BaseOutputPath>bin\EngineTests\</BaseOutputPath>
-    <BaseIntermediateOutputPath>obj\EngineTests\</BaseIntermediateOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="EngineTests.cs" />
