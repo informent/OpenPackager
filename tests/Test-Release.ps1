@@ -26,8 +26,7 @@ $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $ro
 Write-Host 'PASS: packaging, installer, and signing sources are present'
 & dotnet run --project (Join-Path $PSScriptRoot 'OpenPackager.EngineTests.csproj') -c Release | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Packaging engine tests failed with exit code $LASTEXITCODE." }
-$out = Join-Path $root 'test-output'
-if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+$out = Join-Path $root ('test-output-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $out | Out-Null
 dotnet publish (Join-Path $root 'OpenPackager.csproj') -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -o $out | Out-Host
 $exe = Join-Path $out 'OpenPackager.exe'
