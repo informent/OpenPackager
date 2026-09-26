@@ -5,11 +5,16 @@ $required = @(
     (Join-Path $root 'installer\Install-OpenPackager.ps1'),
     (Join-Path $root 'installer\Uninstall-OpenPackager.ps1'),
     (Join-Path $root 'tools\Sign-Release.ps1')
+    (Join-Path $root 'tools\Build-Python.ps1')
+    (Join-Path $root 'tools\Build-Node.ps1')
+    (Join-Path $root 'Resources\Strings.en-US.json')
 )
 foreach ($file in $required) { if (-not (Test-Path $file)) { throw "Required release component is missing: $file" } }
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'installer\Install-OpenPackager.ps1'), [ref]$null, [ref]$null)
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'installer\Uninstall-OpenPackager.ps1'), [ref]$null, [ref]$null)
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'tools\Sign-Release.ps1'), [ref]$null, [ref]$null)
+$null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'tools\Build-Python.ps1'), [ref]$null, [ref]$null)
+$null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'tools\Build-Node.ps1'), [ref]$null, [ref]$null)
 Write-Host 'PASS: packaging, installer, and signing sources are present'
 & dotnet run --project (Join-Path $PSScriptRoot 'OpenPackager.EngineTests.csproj') -c Release | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Packaging engine tests failed with exit code $LASTEXITCODE." }

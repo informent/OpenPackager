@@ -1,0 +1,9 @@
+{
+  "app.title": "OpenPackager",
+  "app.subtitle": "Windows application packaging",
+  "action.scan": "Scan project",
+  "action.build": "Build release",
+  "action.cancel": "Cancel",
+  "action.update": "Check for updates",
+  "status.offline": "Offline mode · No telemetry"
+}
