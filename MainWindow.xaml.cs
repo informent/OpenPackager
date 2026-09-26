@@ -9,10 +9,13 @@ using Forms = System.Windows.Forms;
 namespace OpenPackager;
 public partial class MainWindow : Window
 {
-    string? root; string? csproj; string? lastOutput;
-    public MainWindow() { InitializeComponent(); ApplyTheme("Light"); ApplyAccent(220); }
-    void Theme_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) { if (Theme?.SelectedItem is System.Windows.Controls.ComboBoxItem item) ApplyTheme(item.Content?.ToString() ?? "Light"); }
-    void AccentSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { if (AccentValue is not null) { AccentValue.Text = $"{(int)e.NewValue}°"; ApplyAccent(e.NewValue); } }
+    string? root; string? csproj; string? lastOutput; bool loadingSettings;
+    static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB", "openpackager-settings.json");
+    public MainWindow() { InitializeComponent(); LoadSettings(); }
+    void Theme_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) { if (!loadingSettings && Theme?.SelectedItem is System.Windows.Controls.ComboBoxItem item) { var theme = item.Content?.ToString() ?? "Light"; ApplyTheme(theme); SaveSettings(theme, AccentSlider.Value); } }
+    void AccentSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) { if (AccentValue is not null) { AccentValue.Text = $"{(int)e.NewValue}°"; ApplyAccent(e.NewValue); if (!loadingSettings && Theme?.SelectedItem is System.Windows.Controls.ComboBoxItem item) SaveSettings(item.Content?.ToString() ?? "Light", e.NewValue); } }
+    void LoadSettings() { loadingSettings = true; var theme = "Light"; var accent = 220d; try { if (File.Exists(SettingsPath)) { var saved = JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(SettingsPath)); theme = saved?.Theme ?? theme; accent = saved?.AccentHue ?? accent; } } catch { Log("Settings could not be read; defaults used"); } Theme.SelectedIndex = theme switch { "Dark" => 1, "System" => 2, _ => 0 }; AccentSlider.Value = Math.Clamp(accent, 0, 360); loadingSettings = false; ApplyTheme(theme); ApplyAccent(accent); }
+    void SaveSettings(string theme, double accent) { try { Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!); File.WriteAllText(SettingsPath, JsonSerializer.Serialize(new UserSettings(theme, accent), new JsonSerializerOptions { WriteIndented = true })); } catch { Log("Settings could not be saved"); } }
     void ApplyTheme(string theme) { bool dark = theme == "Dark"; var bg = dark ? "#171A20" : "#F3F5F8"; var panel = dark ? "#222832" : "#FFFFFF"; var alt = dark ? "#2B3440" : "#E9EEF5"; var border = dark ? "#3A4655" : "#D4DCE7"; var text = dark ? "#F1F4F8" : "#172131"; var muted = dark ? "#AAB5C4" : "#65748A"; System.Windows.Application.Current.Resources["Background"] = Brush(bg); System.Windows.Application.Current.Resources["Panel"] = Brush(panel); System.Windows.Application.Current.Resources["PanelAlt"] = Brush(alt); System.Windows.Application.Current.Resources["Border"] = Brush(border); System.Windows.Application.Current.Resources["Text"] = Brush(text); System.Windows.Application.Current.Resources["Muted"] = Brush(muted); }
     void ApplyAccent(double hue) { System.Windows.Application.Current.Resources["Accent"] = new System.Windows.Media.SolidColorBrush(Hsv(hue, .72, .82)); }
     static System.Windows.Media.SolidColorBrush Brush(string value) => new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(value));
@@ -55,3 +58,4 @@ public partial class MainWindow : Window
         HealthText.Text = "Release ready to run.";
     }
 }
+record UserSettings(string Theme, double AccentHue);
