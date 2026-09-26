@@ -49,6 +49,9 @@ public partial class MainWindow : Window
         var psi = new ProcessStartInfo("dotnet", $"publish \"{csproj}\" -c Release -r {runtime} --self-contained {SelfContained.IsChecked == true} -o \"{folder}\" -p:PublishSingleFile={SingleFile.IsChecked == true} -p:DebugType=None") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         activeProcess = Process.Start(psi); CancelBuild.IsEnabled = activeProcess is not null;
         if (activeProcess is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Could not start the .NET publisher."; return; }
+        activeProcess.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) { Log("publisher: " + e.Data); Dispatcher.Invoke(() => Activity.Text = e.Data); } };
+        activeProcess.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) { Log("publisher-error: " + e.Data); Dispatcher.Invoke(() => Activity.Text = e.Data); } };
+        activeProcess.BeginOutputReadLine(); activeProcess.BeginErrorReadLine();
         await activeProcess.WaitForExitAsync(); var p = activeProcess; activeProcess = null; CancelBuild.IsEnabled = false;
         if (p.ExitCode < 0) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Build cancelled."; return; }
         if (p.ExitCode != 0) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; var error = await p.StandardError.ReadToEndAsync(); Log("Build failed: exit=" + p.ExitCode); Activity.Text = "Build failed.\n\n" + error; return; }
