@@ -28,6 +28,8 @@ The tool is intentionally deterministic: every package contains `openpackager-ma
 
 Run `powershell -ExecutionPolicy Bypass -File .\tests\Test-Release.ps1` before publishing a release. The smoke test publishes the self-contained GUI, checks that the executable exists, and confirms that the application remains open.
 
+Portable packages include installer scripts under `installer`. Code signing is supported through `tools\Sign-Release.ps1` when a valid certificate thumbprint is supplied; unsigned builds are never presented as signed.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
