@@ -3,12 +3,14 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.IO.Compression;
+using System.Net.Http;
 using System.Windows;
 using Forms = System.Windows.Forms;
 
 namespace OpenPackager;
 public partial class MainWindow : Window
 {
+    const string AppVersion = "2.3.0";
     string? root; string? csproj; string? lastOutput; bool loadingSettings; Process? activeProcess;
     static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB", "openpackager-settings.json");
     public MainWindow() { InitializeComponent(); LoadSettings(); }
@@ -23,6 +25,7 @@ public partial class MainWindow : Window
     static string LogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB", "OpenPackager.log");
     static void Log(string message) { try { Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!); File.AppendAllText(LogPath, $"{DateTime.UtcNow:O}  {message}{Environment.NewLine}"); } catch { } }
     void ViewLog_Click(object sender, RoutedEventArgs e) { Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!); if (!File.Exists(LogPath)) File.WriteAllText(LogPath, $"{DateTime.UtcNow:O}  No diagnostic events recorded yet.{Environment.NewLine}"); Process.Start(new ProcessStartInfo("notepad.exe", $"\"{LogPath}\"") { UseShellExecute = true }); }
+    async void CheckUpdates_Click(object sender, RoutedEventArgs e) { try { using var client = new HttpClient(); client.DefaultRequestHeaders.UserAgent.ParseAdd("OpenPackager/" + AppVersion); var json = await client.GetStringAsync("https://api.github.com/repos/informent/OpenPackager/releases/latest"); using var doc = JsonDocument.Parse(json); var latest = doc.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v') ?? AppVersion; Log("Update check completed: latest=" + latest); System.Windows.MessageBox.Show(string.Compare(latest, AppVersion, StringComparison.OrdinalIgnoreCase) > 0 ? $"Update {latest} is available on GitHub." : $"You are running the latest release ({AppVersion}).", "OpenPackager", MessageBoxButton.OK, MessageBoxImage.Information); } catch (Exception ex) { Log("Update check failed: " + ex.GetType().Name); System.Windows.MessageBox.Show("Could not check GitHub right now. You can check the Releases page manually.", "OpenPackager", MessageBoxButton.OK, MessageBoxImage.Warning); } }
     void ChooseFolder_Click(object sender, RoutedEventArgs e) { using var d = new Forms.FolderBrowserDialog { Description = "Choose the project folder to package" }; if (d.ShowDialog() == Forms.DialogResult.OK) { root = d.SelectedPath; ProjectPath.Text = root; Log("Folder selected: " + root); Scan(); if (Theme?.SelectedItem is System.Windows.Controls.ComboBoxItem item) SaveSettings(item.Content?.ToString() ?? "Light", AccentSlider.Value, root); } }
     void Scan_Click(object sender, RoutedEventArgs e) => Scan();
     void Scan() { if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !Directory.Exists(ProjectPath.Text)) { HealthText.Text = "Choose a valid project folder first."; Log("Scan rejected: invalid folder"); return; } root = ProjectPath.Text; csproj = Directory.EnumerateFiles(root, "*.csproj").FirstOrDefault(); var py = File.Exists(Path.Combine(root, "pyproject.toml")); var node = File.Exists(Path.Combine(root, "package.json")); var kind = csproj is not null ? ".NET project" : py ? "Python project" : node ? "Node project" : "Unknown project"; ProjectType.Text = kind; HealthText.Text = kind == "Unknown project" ? "No supported project marker was found." : "Ready to package. The appropriate local adapter will be used."; Activity.Text = $"Scanned {DateTime.Now:T}\nType: {kind}\nSource remains local."; Log($"Scan completed: {kind}"); }
