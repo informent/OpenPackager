@@ -50,12 +50,10 @@ public partial class MainWindow : Window
         var exe = Directory.EnumerateFiles(folder, "*.exe").FirstOrDefault();
         if (exe is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Build finished, but no executable was produced."; return; }
         var hash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(exe))).ToLowerInvariant();
-        await File.WriteAllTextAsync(Path.Combine(folder, "SHA256SUMS.txt"), $"{hash}  {Path.GetFileName(exe)}\n");
         var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileNameWithoutExtension(csproj), runtime, selfContained = SelfContained.IsChecked == true, singleFile = SingleFile.IsChecked == true, executable = Path.GetFileName(exe), sha256 = hash };
-        await File.WriteAllTextAsync(Path.Combine(folder, "openpackager-manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
-        var zip = folder.TrimEnd(Path.DirectorySeparatorChar) + ".zip";
-        if (File.Exists(zip)) File.Delete(zip);
-        ZipFile.CreateFromDirectory(folder, zip, CompressionLevel.Optimal, false);
+        await PackagingEngine.WriteChecksumsAsync(folder);
+        await PackagingEngine.WriteManifestAsync(folder, manifest);
+        var zip = PackagingEngine.CreateZip(folder);
         Log($"Build completed: update={next:D3}, output={folder}, package={zip}");
         BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Release complete.\n\nUpdate: {next:D3}\nSaved to:\n{folder}\nPackage:\n{zip}\n\n{Path.GetFileName(exe)}";
         HealthText.Text = "Release ready to run.";
@@ -68,9 +66,7 @@ public partial class MainWindow : Window
         var kind = File.Exists(Path.Combine(source, "package.json")) ? "node" : "python"; var bundle = Path.Combine(folder, Path.GetFileName(source)); Directory.CreateDirectory(bundle);
         var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".git", "bin", "obj", "node_modules", ".venv", "venv", "dist", "__pycache__" };
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) { var relative = Path.GetRelativePath(source, file); if (relative.Split(Path.DirectorySeparatorChar).Any(excluded.Contains)) continue; var dest = Path.Combine(bundle, relative); Directory.CreateDirectory(Path.GetDirectoryName(dest)!); File.Copy(file, dest, true); }
-        var files = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).ToArray(); var checksums = files.Select(f => $"{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(f))).ToLowerInvariant()}  {Path.GetRelativePath(folder, f).Replace('\\', '/')}"); await File.WriteAllLinesAsync(Path.Combine(folder, "SHA256SUMS.txt"), checksums);
-        var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileName(source), adapter = kind, type = "source-bundle", fileCount = files.Length }; await File.WriteAllTextAsync(Path.Combine(folder, "openpackager-manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
-        var zip = folder.TrimEnd(Path.DirectorySeparatorChar) + ".zip"; if (File.Exists(zip)) File.Delete(zip); ZipFile.CreateFromDirectory(folder, zip, CompressionLevel.Optimal, false); Log($"Source bundle completed: update={next:D3}, adapter={kind}, output={folder}"); BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Source bundle complete.\n\nAdapter: {kind}\nUpdate: {next:D3}\nPackage:\n{zip}"; HealthText.Text = "Release ready to distribute.";
+        var files = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).ToArray(); var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileName(source), adapter = kind, type = "source-bundle", fileCount = files.Length }; await PackagingEngine.WriteChecksumsAsync(folder); await PackagingEngine.WriteManifestAsync(folder, manifest); var zip = PackagingEngine.CreateZip(folder); Log($"Source bundle completed: update={next:D3}, adapter={kind}, output={folder}"); BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Source bundle complete.\n\nAdapter: {kind}\nUpdate: {next:D3}\nPackage:\n{zip}"; HealthText.Text = "Release ready to distribute.";
     }
 }
 record UserSettings(string Theme, double AccentHue, string? LastProject);
