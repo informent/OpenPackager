@@ -6,7 +6,7 @@
     <SolidColorBrush x:Key="Border" Color="#293653" />
     <SolidColorBrush x:Key="Text" Color="#EEF3FF" />
     <SolidColorBrush x:Key="Muted" Color="#8E9AB5" />
-    <SolidColorBrush x:Key="Accent" Color="#6C8CFF" />
+    <SolidColorBrush x:Key="Accent" Color="#4E8DFF" />
     <SolidColorBrush x:Key="Good" Color="#51D6A2" />
     <DropShadowEffect x:Key="CardShadow" BlurRadius="22" ShadowDepth="4" Opacity="0.22" Color="#000000" />
     <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource Text}" /><Setter Property="FontFamily" Value="Segoe UI" /></Style>
