@@ -10,6 +10,8 @@ OpenPackager is a privacy-first, open-source Windows release builder for develop
 - Assembles a clean release directory.
 - Creates SHA-256 checksums and a JSON build report.
 - Never uploads source code or uses telemetry.
+- Automatically places each desktop build in the next numbered `Downloads\\GITHUB` update folder.
+- Writes a release manifest and SHA-256 checksum beside every executable.
 
 ## Usage
 
