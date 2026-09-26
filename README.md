@@ -24,6 +24,10 @@ dotnet run -- package C:\path\to\project --output .\dist --runtime win-x64 --sel
 
 The tool is intentionally deterministic: every package contains `openpackager-manifest.json` and `SHA256SUMS.txt`.
 
+## Verification
+
+Run `powershell -ExecutionPolicy Bypass -File .\tests\Test-Release.ps1` before publishing a release. The smoke test publishes the self-contained GUI, checks that the executable exists, and confirms that the application remains open.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
