@@ -11,6 +11,7 @@ $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $ro
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'installer\Uninstall-OpenPackager.ps1'), [ref]$null, [ref]$null)
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'tools\Sign-Release.ps1'), [ref]$null, [ref]$null)
 Write-Host 'PASS: packaging, installer, and signing sources are present'
+dotnet run --project (Join-Path $PSScriptRoot 'OpenPackager.EngineTests.csproj') -c Release | Out-Host
 $out = Join-Path $root 'test-output'
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 New-Item -ItemType Directory -Path $out | Out-Null
