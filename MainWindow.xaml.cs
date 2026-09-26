@@ -9,7 +9,7 @@ using Forms = System.Windows.Forms;
 namespace OpenPackager;
 public partial class MainWindow : Window
 {
-    string? root; string? csproj; string? lastOutput; bool loadingSettings;
+    string? root; string? csproj; string? lastOutput; bool loadingSettings; Process? activeProcess;
     static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB", "openpackager-settings.json");
     public MainWindow() { InitializeComponent(); LoadSettings(); }
     void Theme_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) { if (loadingSettings || Theme is null || AccentSlider is null) return; if (Theme.SelectedItem is System.Windows.Controls.ComboBoxItem item) { var theme = item.Content?.ToString() ?? "Light"; ApplyTheme(theme); SaveSettings(theme, AccentSlider.Value, root); } }
@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     void Scan_Click(object sender, RoutedEventArgs e) => Scan();
     void Scan() { if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !Directory.Exists(ProjectPath.Text)) { HealthText.Text = "Choose a valid project folder first."; Log("Scan rejected: invalid folder"); return; } root = ProjectPath.Text; csproj = Directory.EnumerateFiles(root, "*.csproj").FirstOrDefault(); var py = File.Exists(Path.Combine(root, "pyproject.toml")); var node = File.Exists(Path.Combine(root, "package.json")); var kind = csproj is not null ? ".NET project" : py ? "Python project" : node ? "Node project" : "Unknown project"; ProjectType.Text = kind; HealthText.Text = kind == "Unknown project" ? "No supported project marker was found." : "Ready to package. The appropriate local adapter will be used."; Activity.Text = $"Scanned {DateTime.Now:T}\nType: {kind}\nSource remains local."; Log($"Scan completed: {kind}"); }
     void OpenOutput_Click(object sender, RoutedEventArgs e) { if (lastOutput is not null && Directory.Exists(lastOutput)) Process.Start(new ProcessStartInfo("explorer.exe", $"\"{lastOutput}\"") { UseShellExecute = true }); }
+    void CancelBuild_Click(object sender, RoutedEventArgs e) { if (activeProcess is { HasExited: false }) { Log("Build cancellation requested"); activeProcess.Kill(true); } }
     async void Build_Click(object sender, RoutedEventArgs e)
     {
         if (csproj is null) Scan();
@@ -41,9 +42,10 @@ public partial class MainWindow : Window
         var runtime = ((System.Windows.Controls.ComboBoxItem)Runtime.SelectedItem)?.Tag?.ToString() ?? "win-x64";
         Log($"Build started: runtime={runtime}, selfContained={SelfContained.IsChecked == true}, singleFile={SingleFile.IsChecked == true}");
         var psi = new ProcessStartInfo("dotnet", $"publish \"{csproj}\" -c Release -r {runtime} --self-contained {SelfContained.IsChecked == true} -o \"{folder}\" -p:PublishSingleFile={SingleFile.IsChecked == true} -p:DebugType=None") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        using var p = Process.Start(psi);
-        if (p is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Could not start the .NET publisher."; return; }
-        await p.WaitForExitAsync();
+        activeProcess = Process.Start(psi); CancelBuild.IsEnabled = activeProcess is not null;
+        if (activeProcess is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Could not start the .NET publisher."; return; }
+        await activeProcess.WaitForExitAsync(); var p = activeProcess; activeProcess = null; CancelBuild.IsEnabled = false;
+        if (p.ExitCode < 0) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Build cancelled."; return; }
         if (p.ExitCode != 0) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; var error = await p.StandardError.ReadToEndAsync(); Log("Build failed: exit=" + p.ExitCode); Activity.Text = "Build failed.\n\n" + error; return; }
         var exe = Directory.EnumerateFiles(folder, "*.exe").FirstOrDefault();
         if (exe is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Build finished, but no executable was produced."; return; }
