@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.IO.Compression;
 using System.Windows;
 using Forms = System.Windows.Forms;
 
@@ -36,7 +37,10 @@ public partial class MainWindow : Window
         await File.WriteAllTextAsync(Path.Combine(folder, "SHA256SUMS.txt"), $"{hash}  {Path.GetFileName(exe)}\n");
         var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileNameWithoutExtension(csproj), runtime, selfContained = SelfContained.IsChecked == true, singleFile = SingleFile.IsChecked == true, executable = Path.GetFileName(exe), sha256 = hash };
         await File.WriteAllTextAsync(Path.Combine(folder, "openpackager-manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
-        BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Release complete.\n\nUpdate: {next:D3}\nSaved to:\n{folder}\n\n{Path.GetFileName(exe)}";
+        var zip = folder.TrimEnd(Path.DirectorySeparatorChar) + ".zip";
+        if (File.Exists(zip)) File.Delete(zip);
+        ZipFile.CreateFromDirectory(folder, zip, CompressionLevel.Optimal, false);
+        BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Release complete.\n\nUpdate: {next:D3}\nSaved to:\n{folder}\nPackage:\n{zip}\n\n{Path.GetFileName(exe)}";
         HealthText.Text = "Release ready to run.";
     }
 }

@@ -12,6 +12,7 @@ OpenPackager is a privacy-first, open-source Windows release builder for develop
 - Never uploads source code or uses telemetry.
 - Automatically places each desktop build in the next numbered `Downloads\\GITHUB` update folder.
 - Writes a release manifest and SHA-256 checksum beside every executable.
+- Creates a compressed ZIP package automatically after a successful build.
 
 ## Usage
 
