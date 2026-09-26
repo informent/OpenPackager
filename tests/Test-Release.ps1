@@ -4,6 +4,7 @@ $required = @(
     (Join-Path $root 'PackagingEngine.cs'),
     (Join-Path $root 'installer\Install-OpenPackager.ps1'),
     (Join-Path $root 'installer\Uninstall-OpenPackager.ps1'),
+    (Join-Path $root 'installer\Build-MSIX.ps1'),
     (Join-Path $root 'tools\Sign-Release.ps1')
     (Join-Path $root 'tools\Build-Python.ps1')
     (Join-Path $root 'tools\Build-Node.ps1')
@@ -12,6 +13,7 @@ $required = @(
 foreach ($file in $required) { if (-not (Test-Path $file)) { throw "Required release component is missing: $file" } }
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'installer\Install-OpenPackager.ps1'), [ref]$null, [ref]$null)
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'installer\Uninstall-OpenPackager.ps1'), [ref]$null, [ref]$null)
+$null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'installer\Build-MSIX.ps1'), [ref]$null, [ref]$null)
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'tools\Sign-Release.ps1'), [ref]$null, [ref]$null)
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'tools\Build-Python.ps1'), [ref]$null, [ref]$null)
 $null = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'tools\Build-Node.ps1'), [ref]$null, [ref]$null)
