@@ -4,3 +4,5 @@ dist/
 .vs/
 *.user
 *.suo
+verification-output/
+package-stage-*/
