@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <BaseOutputPath>bin\UiSmoke\</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj\UiSmoke\</BaseIntermediateOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="UiSmoke.cs" />
