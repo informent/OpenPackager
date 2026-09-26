@@ -13,4 +13,7 @@ if ($p.HasExited) { throw "Published GUI exited during smoke test with code $($p
 Stop-Process -Id $p.Id -Force
 Write-Host "PASS: published GUI stayed alive"
 Write-Host "PASS: executable SHA256 $hash"
-Remove-Item $out -Recurse -Force
+for ($attempt = 1; $attempt -le 5; $attempt++) {
+    try { Remove-Item $out -Recurse -Force -ErrorAction Stop; break }
+    catch { if ($attempt -eq 5) { Write-Warning "Could not remove test output; it can be cleaned later." } else { Start-Sleep -Milliseconds 500 } }
+}

@@ -6,3 +6,4 @@ dist/
 *.suo
 verification-output/
 package-stage-*/
+test-output/
