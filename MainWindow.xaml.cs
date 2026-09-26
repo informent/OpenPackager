@@ -25,12 +25,13 @@ public partial class MainWindow : Window
     void ViewLog_Click(object sender, RoutedEventArgs e) { Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!); if (!File.Exists(LogPath)) File.WriteAllText(LogPath, $"{DateTime.UtcNow:O}  No diagnostic events recorded yet.{Environment.NewLine}"); Process.Start(new ProcessStartInfo("notepad.exe", $"\"{LogPath}\"") { UseShellExecute = true }); }
     void ChooseFolder_Click(object sender, RoutedEventArgs e) { using var d = new Forms.FolderBrowserDialog { Description = "Choose the project folder to package" }; if (d.ShowDialog() == Forms.DialogResult.OK) { root = d.SelectedPath; ProjectPath.Text = root; Log("Folder selected: " + root); Scan(); if (Theme?.SelectedItem is System.Windows.Controls.ComboBoxItem item) SaveSettings(item.Content?.ToString() ?? "Light", AccentSlider.Value, root); } }
     void Scan_Click(object sender, RoutedEventArgs e) => Scan();
-    void Scan() { if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !Directory.Exists(ProjectPath.Text)) { HealthText.Text = "Choose a valid project folder first."; Log("Scan rejected: invalid folder"); return; } root = ProjectPath.Text; csproj = Directory.EnumerateFiles(root, "*.csproj").FirstOrDefault(); var py = File.Exists(Path.Combine(root, "pyproject.toml")); var node = File.Exists(Path.Combine(root, "package.json")); var kind = csproj is not null ? ".NET project" : py ? "Python project" : node ? "Node project" : "Unknown project"; ProjectType.Text = kind; HealthText.Text = csproj is not null ? "Ready to package. Build artifacts and checksums will be generated." : "Detection works, but this adapter is not available in this release."; Activity.Text = $"Scanned {DateTime.Now:T}\nType: {kind}\nSource remains local."; Log($"Scan completed: {kind}"); }
+    void Scan() { if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !Directory.Exists(ProjectPath.Text)) { HealthText.Text = "Choose a valid project folder first."; Log("Scan rejected: invalid folder"); return; } root = ProjectPath.Text; csproj = Directory.EnumerateFiles(root, "*.csproj").FirstOrDefault(); var py = File.Exists(Path.Combine(root, "pyproject.toml")); var node = File.Exists(Path.Combine(root, "package.json")); var kind = csproj is not null ? ".NET project" : py ? "Python project" : node ? "Node project" : "Unknown project"; ProjectType.Text = kind; HealthText.Text = kind == "Unknown project" ? "No supported project marker was found." : "Ready to package. The appropriate local adapter will be used."; Activity.Text = $"Scanned {DateTime.Now:T}\nType: {kind}\nSource remains local."; Log($"Scan completed: {kind}"); }
     void OpenOutput_Click(object sender, RoutedEventArgs e) { if (lastOutput is not null && Directory.Exists(lastOutput)) Process.Start(new ProcessStartInfo("explorer.exe", $"\"{lastOutput}\"") { UseShellExecute = true }); }
     async void Build_Click(object sender, RoutedEventArgs e)
     {
         if (csproj is null) Scan();
-        if (csproj is null || root is null) return;
+        if (root is null) return;
+        if (csproj is null) { await PackageSourceProject(root); return; }
         var github = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB");
         Directory.CreateDirectory(github);
         var next = Directory.EnumerateDirectories(github).Select(Path.GetFileName).Where(n => n is not null && int.TryParse(n, out _)).Select(n => int.Parse(n!)).DefaultIfEmpty(0).Max() + 1;
@@ -56,6 +57,18 @@ public partial class MainWindow : Window
         Log($"Build completed: update={next:D3}, output={folder}, package={zip}");
         BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Release complete.\n\nUpdate: {next:D3}\nSaved to:\n{folder}\nPackage:\n{zip}\n\n{Path.GetFileName(exe)}";
         HealthText.Text = "Release ready to run.";
+    }
+    async Task PackageSourceProject(string source)
+    {
+        var github = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB"); Directory.CreateDirectory(github);
+        var next = Directory.EnumerateDirectories(github).Select(Path.GetFileName).Where(n => n is not null && int.TryParse(n, out _)).Select(n => int.Parse(n!)).DefaultIfEmpty(0).Max() + 1;
+        var folder = Path.Combine(github, next.ToString("D3")); Directory.CreateDirectory(folder); lastOutput = folder; OpenOutput.IsEnabled = false; BuildProgress.Visibility = Visibility.Visible; BuildProgress.IsIndeterminate = true; Activity.Text = $"Bundling update {next:D3}...";
+        var kind = File.Exists(Path.Combine(source, "package.json")) ? "node" : "python"; var bundle = Path.Combine(folder, Path.GetFileName(source)); Directory.CreateDirectory(bundle);
+        var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".git", "bin", "obj", "node_modules", ".venv", "venv", "dist", "__pycache__" };
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) { var relative = Path.GetRelativePath(source, file); if (relative.Split(Path.DirectorySeparatorChar).Any(excluded.Contains)) continue; var dest = Path.Combine(bundle, relative); Directory.CreateDirectory(Path.GetDirectoryName(dest)!); File.Copy(file, dest, true); }
+        var files = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).ToArray(); var checksums = files.Select(f => $"{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(f))).ToLowerInvariant()}  {Path.GetRelativePath(folder, f).Replace('\\', '/')}"); await File.WriteAllLinesAsync(Path.Combine(folder, "SHA256SUMS.txt"), checksums);
+        var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileName(source), adapter = kind, type = "source-bundle", fileCount = files.Length }; await File.WriteAllTextAsync(Path.Combine(folder, "openpackager-manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+        var zip = folder.TrimEnd(Path.DirectorySeparatorChar) + ".zip"; if (File.Exists(zip)) File.Delete(zip); ZipFile.CreateFromDirectory(folder, zip, CompressionLevel.Optimal, false); Log($"Source bundle completed: update={next:D3}, adapter={kind}, output={folder}"); BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Source bundle complete.\n\nAdapter: {kind}\nUpdate: {next:D3}\nPackage:\n{zip}"; HealthText.Text = "Release ready to distribute.";
     }
 }
 record UserSettings(string Theme, double AccentHue, string? LastProject);
