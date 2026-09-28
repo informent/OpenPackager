@@ -1,0 +1,12 @@
+# OpenPackager 2.9.0
+
+- Include the release manifest in SHA-256 checksums and exclude the checksum list itself on repeated runs.
+- Stream file hashes instead of loading entire payloads into memory.
+- Preserve an existing ZIP and stage a new archive until creation succeeds; clean up unfinished archives on failure.
+- Reject symbolic links and junctions when packaging a release folder.
+- Rescan the selected project before building and reject unsupported folders.
+- Prevent overlapping builds and recover from publisher failures without mixing asynchronous and synchronous stderr reads.
+- Report version 2.9.0 consistently and compare update versions numerically.
+- Add archive-content regression tests and automated packaged-app checks to Windows CI.
+
+Windows x64 executable and ZIP. This update does not certify installers, code signing, ARM64/x86 execution, or standalone Python/Node adapters. Python and Node GUI output remains a source bundle.

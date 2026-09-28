@@ -7,3 +7,4 @@ dist/
 verification-output/
 package-stage-*/
 test-output/
+test-output-*/

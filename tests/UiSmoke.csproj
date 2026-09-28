@@ -9,7 +9,5 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="UiSmoke.cs" />
-    <Reference Include="UIAutomationClient" HintPath="C:\Program Files\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\10.0.12\ref\net10.0\UIAutomationClient.dll" />
-    <Reference Include="UIAutomationTypes" HintPath="C:\Program Files\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\10.0.12\ref\net10.0\UIAutomationTypes.dll" />
   </ItemGroup>
 </Project>

@@ -11,7 +11,7 @@ using Forms = System.Windows.Forms;
 namespace OpenPackager;
 public partial class MainWindow : Window
 {
-    const string AppVersion = "2.3.0";
+    static string AppVersion => typeof(MainWindow).Assembly.GetName().Version!.ToString(3);
     string? root; string? csproj; string? lastOutput; bool loadingSettings; Process? activeProcess;
     static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB", "openpackager-settings.json");
     public MainWindow() { InitializeComponent(); LoadSettings(); }
@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     static string LogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB", "OpenPackager.log");
     static void Log(string message) { try { Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!); File.AppendAllText(LogPath, $"{DateTime.UtcNow:O}  {message}{Environment.NewLine}"); } catch { } }
     void ViewLog_Click(object sender, RoutedEventArgs e) { Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!); if (!File.Exists(LogPath)) File.WriteAllText(LogPath, $"{DateTime.UtcNow:O}  No diagnostic events recorded yet.{Environment.NewLine}"); Process.Start(new ProcessStartInfo("notepad.exe", $"\"{LogPath}\"") { UseShellExecute = true }); }
-    async void CheckUpdates_Click(object sender, RoutedEventArgs e) { try { using var client = new HttpClient(); client.DefaultRequestHeaders.UserAgent.ParseAdd("OpenPackager/" + AppVersion); var json = await client.GetStringAsync("https://api.github.com/repos/informent/OpenPackager/releases/latest"); using var doc = JsonDocument.Parse(json); var latest = doc.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v') ?? AppVersion; Log("Update check completed: latest=" + latest); System.Windows.MessageBox.Show(string.Compare(latest, AppVersion, StringComparison.OrdinalIgnoreCase) > 0 ? $"Update {latest} is available on GitHub." : $"You are running the latest release ({AppVersion}).", "OpenPackager", MessageBoxButton.OK, MessageBoxImage.Information); } catch (Exception ex) { Log("Update check failed: " + ex.GetType().Name); System.Windows.MessageBox.Show("Could not check GitHub right now. You can check the Releases page manually.", "OpenPackager", MessageBoxButton.OK, MessageBoxImage.Warning); } }
+    async void CheckUpdates_Click(object sender, RoutedEventArgs e) { try { using var client = new HttpClient(); client.DefaultRequestHeaders.UserAgent.ParseAdd("OpenPackager/" + AppVersion); var json = await client.GetStringAsync("https://api.github.com/repos/informent/OpenPackager/releases/latest"); using var doc = JsonDocument.Parse(json); var latest = doc.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v') ?? AppVersion; Log("Update check completed: latest=" + latest); System.Windows.MessageBox.Show((Version.TryParse(latest, out var latestVersion) && latestVersion > Version.Parse(AppVersion)) ? $"Update {latest} is available on GitHub." : $"You are running the latest release ({AppVersion}).", "OpenPackager", MessageBoxButton.OK, MessageBoxImage.Information); } catch (Exception ex) { Log("Update check failed: " + ex.GetType().Name); System.Windows.MessageBox.Show("Could not check GitHub right now. You can check the Releases page manually.", "OpenPackager", MessageBoxButton.OK, MessageBoxImage.Warning); } }
     void ChooseFolder_Click(object sender, RoutedEventArgs e) { using var d = new Forms.FolderBrowserDialog { Description = "Choose the project folder to package" }; if (d.ShowDialog() == Forms.DialogResult.OK) { root = d.SelectedPath; ProjectPath.Text = root; Log("Folder selected: " + root); Scan(); if (Theme?.SelectedItem is System.Windows.Controls.ComboBoxItem item) SaveSettings(item.Content?.ToString() ?? "Light", AccentSlider.Value, root); } }
     void Scan_Click(object sender, RoutedEventArgs e) => Scan();
     void Scan() { if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !Directory.Exists(ProjectPath.Text)) { HealthText.Text = "Choose a valid project folder first."; Log("Scan rejected: invalid folder"); return; } root = ProjectPath.Text; csproj = Directory.EnumerateFiles(root, "*.csproj").FirstOrDefault(); var py = File.Exists(Path.Combine(root, "pyproject.toml")); var node = File.Exists(Path.Combine(root, "package.json")); var kind = csproj is not null ? ".NET project" : py ? "Python project" : node ? "Node project" : "Unknown project"; ProjectType.Text = kind; HealthText.Text = kind == "Unknown project" ? "No supported project marker was found." : "Ready to package. The appropriate local adapter will be used."; Activity.Text = $"Scanned {DateTime.Now:T}\nType: {kind}\nSource remains local."; Log($"Scan completed: {kind}"); }
@@ -36,8 +36,15 @@ public partial class MainWindow : Window
     void CancelBuild_Click(object sender, RoutedEventArgs e) { if (activeProcess is { HasExited: false }) { Log("Build cancellation requested"); activeProcess.Kill(true); } }
     async void Build_Click(object sender, RoutedEventArgs e)
     {
-        if (csproj is null) Scan();
+        if (!BuildRelease.IsEnabled) return;
+        BuildRelease.IsEnabled = false;
+        try
+        {
+        root = null; csproj = null;
+        Scan();
         if (root is null) return;
+        if (csproj is null && !File.Exists(Path.Combine(root, "package.json")) && !File.Exists(Path.Combine(root, "pyproject.toml")))
+        { Activity.Text = "Choose a supported .NET, Python, or Node project."; return; }
         if (csproj is null) { await PackageSourceProject(root); return; }
         var github = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB");
         Directory.CreateDirectory(github);
@@ -53,19 +60,34 @@ public partial class MainWindow : Window
         activeProcess.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) { Log("publisher: " + e.Data); Dispatcher.Invoke(() => Activity.Text = e.Data); } };
         activeProcess.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) { Log("publisher-error: " + e.Data); Dispatcher.Invoke(() => Activity.Text = e.Data); } };
         activeProcess.BeginOutputReadLine(); activeProcess.BeginErrorReadLine();
-        await activeProcess.WaitForExitAsync(); var p = activeProcess; activeProcess = null; CancelBuild.IsEnabled = false;
+        await activeProcess.WaitForExitAsync(); using var p = activeProcess; activeProcess = null; CancelBuild.IsEnabled = false;
         if (p.ExitCode < 0) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Build cancelled."; return; }
-        if (p.ExitCode != 0) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; var error = await p.StandardError.ReadToEndAsync(); Log("Build failed: exit=" + p.ExitCode); Activity.Text = "Build failed.\n\n" + error; return; }
+        if (p.ExitCode != 0) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Log("Build failed: exit=" + p.ExitCode); Activity.Text = "Build failed. Review diagnostics for publisher output."; return; }
         var exe = Directory.EnumerateFiles(folder, "*.exe").FirstOrDefault();
         if (exe is null) { BuildProgress.IsIndeterminate = false; BuildProgress.Visibility = Visibility.Collapsed; Activity.Text = "Build finished, but no executable was produced."; return; }
-        var hash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(exe))).ToLowerInvariant();
+        using var executableStream = File.OpenRead(exe);
+        var hash = Convert.ToHexString(await SHA256.HashDataAsync(executableStream)).ToLowerInvariant();
         var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileNameWithoutExtension(csproj), runtime, selfContained = SelfContained.IsChecked == true, singleFile = SingleFile.IsChecked == true, executable = Path.GetFileName(exe), sha256 = hash };
-        await PackagingEngine.WriteChecksumsAsync(folder);
-        await PackagingEngine.WriteManifestAsync(folder, manifest);
-        var zip = PackagingEngine.CreateZip(folder);
+        var zip = await PackagingEngine.CompleteReleaseAsync(folder, manifest);
         Log($"Build completed: update={next:D3}, output={folder}, package={zip}");
         BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Release complete.\n\nUpdate: {next:D3}\nSaved to:\n{folder}\nPackage:\n{zip}\n\n{Path.GetFileName(exe)}";
         HealthText.Text = "Release ready to run.";
+        }
+        catch (Exception ex)
+        {
+            Log("Build failed: " + ex.GetType().Name);
+            Activity.Text = "Release failed: " + ex.Message;
+            HealthText.Text = "Release was not completed.";
+            OpenOutput.IsEnabled = false;
+        }
+        finally
+        {
+            activeProcess?.Dispose(); activeProcess = null;
+            CancelBuild.IsEnabled = false;
+            BuildRelease.IsEnabled = true;
+            BuildProgress.IsIndeterminate = false;
+            BuildProgress.Visibility = Visibility.Collapsed;
+        }
     }
     async Task PackageSourceProject(string source)
     {
@@ -75,7 +97,7 @@ public partial class MainWindow : Window
         var kind = File.Exists(Path.Combine(source, "package.json")) ? "node" : "python"; var bundle = Path.Combine(folder, Path.GetFileName(source)); Directory.CreateDirectory(bundle);
         var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".git", "bin", "obj", "node_modules", ".venv", "venv", "dist", "__pycache__" };
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) { var relative = Path.GetRelativePath(source, file); if (relative.Split(Path.DirectorySeparatorChar).Any(excluded.Contains)) continue; var dest = Path.Combine(bundle, relative); Directory.CreateDirectory(Path.GetDirectoryName(dest)!); File.Copy(file, dest, true); }
-        var files = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).ToArray(); var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileName(source), adapter = kind, type = "source-bundle", fileCount = files.Length }; await PackagingEngine.WriteChecksumsAsync(folder); await PackagingEngine.WriteManifestAsync(folder, manifest); var zip = PackagingEngine.CreateZip(folder); Log($"Source bundle completed: update={next:D3}, adapter={kind}, output={folder}"); BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Source bundle complete.\n\nAdapter: {kind}\nUpdate: {next:D3}\nPackage:\n{zip}"; HealthText.Text = "Release ready to distribute.";
+        var files = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).ToArray(); var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileName(source), adapter = kind, type = "source-bundle", fileCount = files.Length }; var zip = await PackagingEngine.CompleteReleaseAsync(folder, manifest); Log($"Source bundle completed: update={next:D3}, adapter={kind}, output={folder}"); BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Source bundle complete.\n\nAdapter: {kind}\nUpdate: {next:D3}\nPackage:\n{zip}"; HealthText.Text = "Release ready to distribute.";
     }
 }
 record UserSettings(string Theme, double AccentHue, string? LastProject);

@@ -27,6 +27,9 @@ jobs:
         run: |
           if (-not (Test-Path ci-output/OpenPackager.exe)) { throw 'Published executable missing.' }
           Get-FileHash ci-output/OpenPackager.exe -Algorithm SHA256
+      - name: Verify packaged application workflow
+        shell: powershell
+        run: ./tests/PackageUi.ps1 -Exe "${{ github.workspace }}/ci-output/OpenPackager.exe"
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
