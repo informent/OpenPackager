@@ -33,6 +33,20 @@ public partial class MainWindow : Window
     void Scan_Click(object sender, RoutedEventArgs e) => Scan();
     void Scan() { if (string.IsNullOrWhiteSpace(ProjectPath.Text) || !Directory.Exists(ProjectPath.Text)) { HealthText.Text = "Choose a valid project folder first."; Log("Scan rejected: invalid folder"); return; } root = ProjectPath.Text; csproj = Directory.EnumerateFiles(root, "*.csproj").FirstOrDefault(); var py = File.Exists(Path.Combine(root, "pyproject.toml")); var node = File.Exists(Path.Combine(root, "package.json")); var kind = csproj is not null ? ".NET project" : py ? "Python project" : node ? "Node project" : "Unknown project"; ProjectType.Text = kind; HealthText.Text = kind == "Unknown project" ? "No supported project marker was found." : "Ready to package. The appropriate local adapter will be used."; Activity.Text = $"Scanned {DateTime.Now:T}\nType: {kind}\nSource remains local."; Log($"Scan completed: {kind}"); }
     void OpenOutput_Click(object sender, RoutedEventArgs e) { if (lastOutput is not null && Directory.Exists(lastOutput)) Process.Start(new ProcessStartInfo("explorer.exe", $"\"{lastOutput}\"") { UseShellExecute = true }); }
+    async void VerifyPackage_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Verify an OpenPackager release", Filter = "ZIP packages (*.zip)|*.zip" };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            Activity.Text = "Verifying manifest, paths, coverage, and SHA-256 hashes...";
+            var result = await PackagingEngine.VerifyZipAsync(dialog.FileName);
+            HealthText.Text = result.Valid ? "Package verified." : "Package verification failed.";
+            Activity.Text = result.Valid ? $"Verified {result.VerifiedFiles:N0} packaged files.\nNo unsafe paths, duplicates, missing coverage, or hash mismatches were found." : string.Join("\n", result.Errors.Take(30));
+            Log($"Package verification: valid={result.Valid}, files={result.VerifiedFiles}, errors={result.Errors.Count}");
+        }
+        catch (Exception ex) { HealthText.Text = "Package verification failed."; Activity.Text = ex.Message; Log("Package verification failed: " + ex.GetType().Name); }
+    }
     void CancelBuild_Click(object sender, RoutedEventArgs e) { if (activeProcess is { HasExited: false }) { Log("Build cancellation requested"); activeProcess.Kill(true); } }
     async void Build_Click(object sender, RoutedEventArgs e)
     {

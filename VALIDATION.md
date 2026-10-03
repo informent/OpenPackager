@@ -1,4 +1,4 @@
-# OpenPackager 2.9.0 validation
+# OpenPackager 3.0.0 validation
 
 ## Automated checks
 

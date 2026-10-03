@@ -22,7 +22,7 @@ Start `OpenPackager.exe`, choose your project folder, select the runtime and pac
 
 Each completed package contains `openpackager-manifest.json` and `SHA256SUMS.txt`. Checksums cover the manifest and every payload file, excluding the checksum file itself. Repeating checksum generation without changing the payload produces the same checksum list. ZIP files contain timestamps and are not claimed to be byte-for-byte reproducible.
 
-Version 2.9.0 streams checksum calculation, preserves existing ZIPs, removes unfinished ZIPs after failures, and recovers from publisher errors without leaving Build disabled. Packaging the release folder rejects symbolic links and junctions. This is a local packaging tool, not a sandbox for untrusted project build scripts.
+Version 3.0.0 adds independent ZIP verification from the desktop app. It validates the manifest, complete checksum coverage, every SHA-256 digest, duplicate entries, and unsafe traversal paths before a package is distributed. Existing streaming checksums, failure cleanup, link rejection, and publisher recovery remain in place. This is a local packaging tool, not a sandbox for untrusted project build scripts.
 
 ## Verification
 

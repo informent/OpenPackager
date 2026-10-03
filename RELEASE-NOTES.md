@@ -1,4 +1,8 @@
-# OpenPackager 2.9.0
+# OpenPackager 3.0.0
+
+- Verify existing OpenPackager ZIPs directly from the desktop app.
+- Validate manifests, complete SHA-256 coverage, every payload digest, duplicate archive paths, and traversal attempts.
+- Reject corrupted packages with actionable per-file results.
 
 - Include the release manifest in SHA-256 checksums and exclude the checksum list itself on repeated runs.
 - Stream file hashes instead of loading entire payloads into memory.

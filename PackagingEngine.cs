@@ -7,6 +7,45 @@ namespace OpenPackager;
 
 public static class PackagingEngine
 {
+    public sealed record VerificationResult(bool Valid, int VerifiedFiles, IReadOnlyList<string> Errors);
+
+    public static async Task<VerificationResult> VerifyZipAsync(string zipPath)
+    {
+        var errors = new List<string>(); var verified = 0;
+        using var archive = ZipFile.OpenRead(zipPath);
+        var entries = archive.Entries.Where(x => !string.IsNullOrEmpty(x.Name)).ToArray();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in entries)
+        {
+            var name = entry.FullName.Replace('\\', '/');
+            if (Path.IsPathRooted(name) || name.Split('/').Any(x => x == "..")) errors.Add($"Unsafe archive path: {name}");
+            if (!names.Add(name)) errors.Add($"Duplicate archive path: {name}");
+        }
+        var manifest = entries.FirstOrDefault(x => x.FullName.Replace('\\', '/') == "openpackager-manifest.json");
+        var sums = entries.FirstOrDefault(x => x.FullName.Replace('\\', '/') == "SHA256SUMS.txt");
+        if (manifest is null) errors.Add("Manifest is missing.");
+        if (sums is null) errors.Add("SHA256SUMS.txt is missing.");
+        if (sums is not null)
+        {
+            using var reader = new StreamReader(sums.Open());
+            var lines = (await reader.ReadToEndAsync()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var raw in lines)
+            {
+                var line = raw.TrimEnd('\r');
+                if (line.Length < 67 || line[64..66] != "  ") { errors.Add("Malformed checksum line."); continue; }
+                var expected = line[..64]; var name = line[66..].Replace('\\', '/');
+                var entry = entries.FirstOrDefault(x => x.FullName.Replace('\\', '/').Equals(name, StringComparison.OrdinalIgnoreCase));
+                if (entry is null) { errors.Add($"Checksummed file is missing: {name}"); continue; }
+                using var content = entry.Open();
+                var actual = Convert.ToHexString(await SHA256.HashDataAsync(content)).ToLowerInvariant();
+                if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase)) errors.Add($"Checksum mismatch: {name}"); else verified++;
+            }
+            var expectedCoverage = entries.Count(x => !x.FullName.Replace('\\', '/').Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase));
+            if (lines.Length != expectedCoverage) errors.Add("Checksum coverage is incomplete.");
+        }
+        return new(errors.Count == 0, verified, errors);
+    }
+
     public static async Task<string> WriteChecksumsAsync(string releaseFolder)
     {
         var root = Path.GetFullPath(releaseFolder);

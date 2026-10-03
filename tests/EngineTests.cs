@@ -13,6 +13,8 @@ var zip = await PackagingEngine.CompleteReleaseAsync(root, new { test = true, cr
 if (!File.Exists(Path.Combine(root, "SHA256SUMS.txt"))) throw new Exception("Checksum file was not created.");
 if (!File.Exists(Path.Combine(root, "openpackager-manifest.json"))) throw new Exception("Manifest was not created.");
 if (!File.Exists(zip)) throw new Exception("ZIP was not created.");
+var verifiedPackage = await PackagingEngine.VerifyZipAsync(zip);
+if (!verifiedPackage.Valid || verifiedPackage.VerifiedFiles == 0) throw new Exception("Valid package verification failed.");
 using (var archive = ZipFile.OpenRead(zip))
 {
     if (archive.GetEntry("openpackager-manifest.json") is null) throw new Exception("Manifest missing from ZIP.");
@@ -38,6 +40,15 @@ try { PackagingEngine.CreateZip(root + Path.DirectorySeparatorChar); throw new E
 catch (IOException) { }
 var preservedHash = SHA256.HashData(await File.ReadAllBytesAsync(zip));
 if (!zipHash.SequenceEqual(preservedHash)) throw new Exception("Existing ZIP changed.");
+var corrupt = zip + ".corrupt.zip"; File.Copy(zip, corrupt);
+using (var archive = ZipFile.Open(corrupt, ZipArchiveMode.Update))
+{
+    var entry = archive.GetEntry("app/hello.txt")!; entry.Delete();
+    using var writer = new StreamWriter(archive.CreateEntry("app/hello.txt").Open()); writer.Write("tampered");
+}
+var corruptResult = await PackagingEngine.VerifyZipAsync(corrupt);
+if (corruptResult.Valid || !corruptResult.Errors.Any(x => x.Contains("Checksum mismatch"))) throw new Exception("Corrupt package was accepted.");
+File.Delete(corrupt);
 File.Delete(zip);
 var lockedFile = Path.Combine(root, "app", "hello.txt");
 using (var locked = new FileStream(lockedFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -48,4 +59,4 @@ using (var locked = new FileStream(lockedFile, FileMode.Open, FileAccess.ReadWri
 if (File.Exists(zip) || Directory.EnumerateFiles(Path.GetDirectoryName(root)!, Path.GetFileName(root) + ".zip.*.tmp").Any())
     throw new Exception("Failed ZIP left output behind.");
 Directory.Delete(root, true);
-Console.WriteLine("PASS: archive hashes, manifest coverage, Unicode, large file, repeated checksums, existing ZIP protection and failure cleanup");
+Console.WriteLine("PASS: archive creation and independent verification, corruption rejection, manifest coverage, Unicode, large file, repeated checksums, existing ZIP protection and failure cleanup");
