@@ -24,6 +24,8 @@ Each completed package contains `openpackager-manifest.json` and `SHA256SUMS.txt
 
 Version 3.0.0 adds independent ZIP verification from the desktop app. It validates the manifest, complete checksum coverage, every SHA-256 digest, duplicate entries, and unsafe traversal paths before a package is distributed. Existing streaming checksums, failure cleanup, link rejection, and publisher recovery remain in place. This is a local packaging tool, not a sandbox for untrusted project build scripts.
 
+Version 3.1.0 makes that verification strict: release manifests must parse as JSON objects, checksum paths must be unique, SHA-256 text must be valid hexadecimal, and the normalized checksum-name set must exactly match every payload entry. A duplicated checksum can no longer hide an omitted file.
+
 ## Verification
 
 ```powershell

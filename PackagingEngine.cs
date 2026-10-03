@@ -24,24 +24,32 @@ public static class PackagingEngine
         var manifest = entries.FirstOrDefault(x => x.FullName.Replace('\\', '/') == "openpackager-manifest.json");
         var sums = entries.FirstOrDefault(x => x.FullName.Replace('\\', '/') == "SHA256SUMS.txt");
         if (manifest is null) errors.Add("Manifest is missing.");
+        else
+        {
+            try { using var manifestContent = manifest.Open(); using var document = await JsonDocument.ParseAsync(manifestContent); if (document.RootElement.ValueKind != JsonValueKind.Object) errors.Add("Manifest root must be a JSON object."); }
+            catch (JsonException ex) { errors.Add($"Manifest JSON is invalid: {ex.Message}"); }
+        }
         if (sums is null) errors.Add("SHA256SUMS.txt is missing.");
         if (sums is not null)
         {
             using var reader = new StreamReader(sums.Open());
             var lines = (await reader.ReadToEndAsync()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var checksummedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var raw in lines)
             {
                 var line = raw.TrimEnd('\r');
                 if (line.Length < 67 || line[64..66] != "  ") { errors.Add("Malformed checksum line."); continue; }
                 var expected = line[..64]; var name = line[66..].Replace('\\', '/');
+                if (expected.Length != 64 || !expected.All(Uri.IsHexDigit)) { errors.Add($"Invalid SHA-256 value: {name}"); continue; }
+                if (!checksummedNames.Add(name)) { errors.Add($"Duplicate checksum path: {name}"); continue; }
                 var entry = entries.FirstOrDefault(x => x.FullName.Replace('\\', '/').Equals(name, StringComparison.OrdinalIgnoreCase));
                 if (entry is null) { errors.Add($"Checksummed file is missing: {name}"); continue; }
                 using var content = entry.Open();
                 var actual = Convert.ToHexString(await SHA256.HashDataAsync(content)).ToLowerInvariant();
                 if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase)) errors.Add($"Checksum mismatch: {name}"); else verified++;
             }
-            var expectedCoverage = entries.Count(x => !x.FullName.Replace('\\', '/').Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase));
-            if (lines.Length != expectedCoverage) errors.Add("Checksum coverage is incomplete.");
+            var expectedCoverage = entries.Where(x => !x.FullName.Replace('\\', '/').Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase)).Select(x => x.FullName.Replace('\\', '/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!checksummedNames.SetEquals(expectedCoverage)) errors.Add("Checksum coverage is incomplete.");
         }
         return new(errors.Count == 0, verified, errors);
     }
