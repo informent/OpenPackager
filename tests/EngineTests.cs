@@ -49,6 +49,22 @@ using (var archive = ZipFile.Open(corrupt, ZipArchiveMode.Update))
 var corruptResult = await PackagingEngine.VerifyZipAsync(corrupt);
 if (corruptResult.Valid || !corruptResult.Errors.Any(x => x.Contains("Checksum mismatch"))) throw new Exception("Corrupt package was accepted.");
 File.Delete(corrupt);
+
+var duplicateCoverage = zip + ".duplicate-coverage.zip"; File.Copy(zip, duplicateCoverage);
+using (var archive = ZipFile.Open(duplicateCoverage, ZipArchiveMode.Update))
+{
+    var checksumEntry = archive.GetEntry("SHA256SUMS.txt")!; string[] lines; using (var reader = new StreamReader(checksumEntry.Open())) lines = (await reader.ReadToEndAsync()).Split('\n', StringSplitOptions.RemoveEmptyEntries); checksumEntry.Delete();
+    using var writer = new StreamWriter(archive.CreateEntry("SHA256SUMS.txt").Open()); for (var i = 0; i < lines.Length; i++) await writer.WriteLineAsync(i == lines.Length - 1 ? lines[0] : lines[i]);
+}
+var duplicateCoverageResult = await PackagingEngine.VerifyZipAsync(duplicateCoverage);
+if (duplicateCoverageResult.Valid || !duplicateCoverageResult.Errors.Any(x => x.Contains("Duplicate checksum path")) || !duplicateCoverageResult.Errors.Any(x => x.Contains("coverage is incomplete"))) throw new Exception("Duplicate checksum coverage was accepted.");
+File.Delete(duplicateCoverage);
+
+var malformedManifest = zip + ".bad-manifest.zip"; File.Copy(zip, malformedManifest);
+using (var archive = ZipFile.Open(malformedManifest, ZipArchiveMode.Update)) { var entry = archive.GetEntry("openpackager-manifest.json")!; entry.Delete(); using var writer = new StreamWriter(archive.CreateEntry("openpackager-manifest.json").Open()); await writer.WriteAsync("{ invalid json"); }
+var malformedManifestResult = await PackagingEngine.VerifyZipAsync(malformedManifest);
+if (malformedManifestResult.Valid || !malformedManifestResult.Errors.Any(x => x.Contains("Manifest JSON is invalid"))) throw new Exception("Malformed manifest was accepted.");
+File.Delete(malformedManifest);
 File.Delete(zip);
 var lockedFile = Path.Combine(root, "app", "hello.txt");
 using (var locked = new FileStream(lockedFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -59,4 +75,4 @@ using (var locked = new FileStream(lockedFile, FileMode.Open, FileAccess.ReadWri
 if (File.Exists(zip) || Directory.EnumerateFiles(Path.GetDirectoryName(root)!, Path.GetFileName(root) + ".zip.*.tmp").Any())
     throw new Exception("Failed ZIP left output behind.");
 Directory.Delete(root, true);
-Console.WriteLine("PASS: archive creation and independent verification, corruption rejection, manifest coverage, Unicode, large file, repeated checksums, existing ZIP protection and failure cleanup");
+Console.WriteLine("PASS: archive creation, strict manifest and checksum coverage verification, corruption rejection, Unicode, large file, repeated checksums, existing ZIP protection and failure cleanup");

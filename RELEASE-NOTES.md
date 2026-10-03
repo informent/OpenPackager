@@ -1,4 +1,10 @@
-# OpenPackager 3.0.0
+# OpenPackager 3.1.0
+
+- Reject malformed JSON release manifests.
+- Require unique checksum paths and strict SHA-256 formatting.
+- Compare checksum coverage as an exact normalized path set so duplicate lines cannot mask missing payloads.
+
+## 3.0.0
 
 - Verify existing OpenPackager ZIPs directly from the desktop app.
 - Validate manifests, complete SHA-256 coverage, every payload digest, duplicate archive paths, and traversal attempts.
