@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 using System.Security.Cryptography;
+using System.Diagnostics;
 using OpenPackager;
 
 var root = Path.Combine(Path.GetTempPath(), "openpackager-engine-test-" + Guid.NewGuid().ToString("N"));
@@ -74,5 +75,29 @@ using (var locked = new FileStream(lockedFile, FileMode.Open, FileAccess.ReadWri
 }
 if (File.Exists(zip) || Directory.EnumerateFiles(Path.GetDirectoryName(root)!, Path.GetFileName(root) + ".zip.*.tmp").Any())
     throw new Exception("Failed ZIP left output behind.");
+
+var sourceFixture = Path.Combine(root, "source-fixture");
+var externalFixture = root + "-external";
+var junctionFixture = Path.Combine(sourceFixture, "linked-outside");
+Directory.CreateDirectory(sourceFixture);
+Directory.CreateDirectory(externalFixture);
+await File.WriteAllTextAsync(Path.Combine(sourceFixture, "included.txt"), "inside source");
+await File.WriteAllTextAsync(Path.Combine(externalFixture, "outside-secret.txt"), "outside source");
+try
+{
+    var start = new ProcessStartInfo("cmd.exe") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+    foreach (var argument in new[] { "/c", "mklink", "/J", junctionFixture, externalFixture }) start.ArgumentList.Add(argument);
+    using var junction = Process.Start(start) ?? throw new Exception("Could not start source junction fixture command.");
+    junction.WaitForExit();
+    if (junction.ExitCode != 0) throw new Exception("Could not create source junction fixture.");
+    try { PackagingEngine.EnumerateSourceFiles(sourceFixture, new HashSet<string>(StringComparer.OrdinalIgnoreCase)); throw new Exception("Source enumeration accepted a junction to an outside folder."); }
+    catch (IOException ex) when (ex.Message.Contains("symbolic link or junction", StringComparison.OrdinalIgnoreCase)) { }
+    if (!File.Exists(Path.Combine(externalFixture, "outside-secret.txt"))) throw new Exception("Source enumeration modified external content.");
+}
+finally
+{
+    if (Directory.Exists(junctionFixture)) Directory.Delete(junctionFixture);
+    if (Directory.Exists(externalFixture)) Directory.Delete(externalFixture, true);
+}
 Directory.Delete(root, true);
-Console.WriteLine("PASS: archive creation, strict manifest and checksum coverage verification, corruption rejection, Unicode, large file, repeated checksums, existing ZIP protection and failure cleanup");
+Console.WriteLine("PASS: archive creation, strict manifest and checksum coverage verification, corruption rejection, Unicode, large file, repeated checksums, existing ZIP protection, failure cleanup, and source-junction rejection");
