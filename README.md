@@ -26,6 +26,8 @@ Version 3.0.0 adds independent ZIP verification from the desktop app. It validat
 
 Version 3.1.0 makes that verification strict: release manifests must parse as JSON objects, checksum paths must be unique, SHA-256 text must be valid hexadecimal, and the normalized checksum-name set must exactly match every payload entry. A duplicated checksum can no longer hide an omitted file.
 
+Version 3.2.0 rejects linked source roots and linked descendants before creating a source bundle, preventing recursive enumeration from escaping the selected project through directory junctions. Windows release builds run the engine regressions and real packaged-app UI workflow, then publish the self-contained executable ZIP with a SHA-256 checksum.
+
 ## Verification
 
 ```powershell
