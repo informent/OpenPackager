@@ -78,6 +78,34 @@ public static class PackagingEngine
         return path;
     }
 
+    public static IReadOnlyList<string> EnumerateSourceFiles(string sourceFolder, IReadOnlySet<string> excludedDirectoryNames)
+    {
+        ArgumentNullException.ThrowIfNull(excludedDirectoryNames);
+        if (!Directory.Exists(sourceFolder)) throw new DirectoryNotFoundException(sourceFolder);
+        var root = Path.GetFullPath(sourceFolder);
+        if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Source project root must not be a symbolic link or junction.");
+
+        var files = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+            foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
+            {
+                var attributes = File.GetAttributes(entry);
+                var isDirectory = (attributes & FileAttributes.Directory) != 0;
+                if (isDirectory && excludedDirectoryNames.Contains(Path.GetFileName(entry))) continue;
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException($"Source project contains a symbolic link or junction: {Path.GetRelativePath(root, entry)}");
+                if (isDirectory) pending.Push(entry);
+                else files.Add(Path.GetFullPath(entry));
+            }
+        }
+        return files.OrderBy(file => Path.GetRelativePath(root, file), StringComparer.Ordinal).ToArray();
+    }
+
     // Refuse linked content instead of silently including files outside the release.
     static IEnumerable<string> EnumerateRegularFiles(string folder)
     {

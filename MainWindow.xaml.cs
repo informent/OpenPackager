@@ -105,12 +105,13 @@ public partial class MainWindow : Window
     }
     async Task PackageSourceProject(string source)
     {
+        var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".git", "bin", "obj", "node_modules", ".venv", "venv", "dist", "__pycache__" };
+        var sourceFiles = PackagingEngine.EnumerateSourceFiles(source, excluded);
         var github = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "GITHUB"); Directory.CreateDirectory(github);
         var next = Directory.EnumerateDirectories(github).Select(Path.GetFileName).Where(n => n is not null && int.TryParse(n, out _)).Select(n => int.Parse(n!)).DefaultIfEmpty(0).Max() + 1;
         var folder = Path.Combine(github, next.ToString("D3")); Directory.CreateDirectory(folder); lastOutput = folder; OpenOutput.IsEnabled = false; BuildProgress.Visibility = Visibility.Visible; BuildProgress.IsIndeterminate = true; Activity.Text = $"Bundling update {next:D3}...";
         var kind = File.Exists(Path.Combine(source, "package.json")) ? "node" : "python"; var bundle = Path.Combine(folder, Path.GetFileName(source)); Directory.CreateDirectory(bundle);
-        var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".git", "bin", "obj", "node_modules", ".venv", "venv", "dist", "__pycache__" };
-        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) { var relative = Path.GetRelativePath(source, file); if (relative.Split(Path.DirectorySeparatorChar).Any(excluded.Contains)) continue; var dest = Path.Combine(bundle, relative); Directory.CreateDirectory(Path.GetDirectoryName(dest)!); File.Copy(file, dest, true); }
+        foreach (var file in sourceFiles) { var relative = Path.GetRelativePath(source, file); var dest = Path.Combine(bundle, relative); Directory.CreateDirectory(Path.GetDirectoryName(dest)!); File.Copy(file, dest, true); }
         var files = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).ToArray(); var manifest = new { product = "OpenPackager", update = next, createdUtc = DateTime.UtcNow, project = Path.GetFileName(source), adapter = kind, type = "source-bundle", fileCount = files.Length }; var zip = await PackagingEngine.CompleteReleaseAsync(folder, manifest); Log($"Source bundle completed: update={next:D3}, adapter={kind}, output={folder}"); BuildProgress.IsIndeterminate = false; BuildProgress.Value = 100; OpenOutput.IsEnabled = true; Activity.Text = $"Source bundle complete.\n\nAdapter: {kind}\nUpdate: {next:D3}\nPackage:\n{zip}"; HealthText.Text = "Release ready to distribute.";
     }
 }
