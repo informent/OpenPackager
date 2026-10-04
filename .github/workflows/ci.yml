@@ -14,9 +14,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - name: Build application
@@ -34,7 +34,7 @@ jobs:
         shell: powershell
         run: ./tests/PackageUi.ps1 -Exe "${{ github.workspace }}/ci-output/OpenPackager.exe"
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: OpenPackager-win-x64
           path: ci-output/
